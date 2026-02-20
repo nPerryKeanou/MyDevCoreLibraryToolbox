@@ -1,0 +1,17 @@
+{
+    "name": "@nPerryKeanou/MyDevCoreLibraryToolBox",
+    "versions": "1.0.0",
+    "description": "My core library and automation tools",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "files": [
+        "dist"
+    ],
+    "script": {
+        "build": "tsc",
+        "generate:nest": "node scripts/nest-module-gen/main.js"
+    },
+    "devDependencies": {
+        "typeScript": "$5.0.0"
+    }
+}
