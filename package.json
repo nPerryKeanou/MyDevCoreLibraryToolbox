@@ -10,7 +10,8 @@
   "scripts": {
     "build": "tsc",
     "generate:nest": "node scripts/nest-module-gen/main.js",
-    "gen:crud": "ts-node scripts/nest-module-gen.ts"
+    "gen:crud": "ts-node scripts/nest-module-gen.ts",
+    "gen:module": "ts-node scripts/generate-module/generate-nest-module.ts"
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",

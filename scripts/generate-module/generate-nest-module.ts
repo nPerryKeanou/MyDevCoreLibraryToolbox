@@ -2,132 +2,192 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import pc from 'picocolors';
 
-// --- Helpers de formatage ---
-const toPascalCase = (str: string) => str.charAt(0).toUpperCase() + str.slice(1);
-const toCamelCase = (str: string) => str.charAt(0).toLowerCase() + str.slice(1);
-const toKebabCase = (str: string) => str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
+/**
+ * INTERFACE : Structure des noms de fichiers et de classes.
+ */
+interface ModuleNames {
+    pascal: string; // Ex: MediaUser
+    camel: string;  // Ex: mediaUser
+    kebab: string;  // Ex: media-user
+}
 
+/**
+ * INTERFACE : Structure obligatoire pour chaque ORM supporté.
+ */
+interface ORMTemplate {
+    service: (n: ModuleNames) => string;
+    serviceSpec: (n: ModuleNames) => string;
+    controller: (n: ModuleNames) => string;
+    controllerSpec: (n: ModuleNames) => string;
+    module: (n: ModuleNames) => string;
+}
+
+/**
+ * HELPERS : Utilitaires de formatage de texte.
+ */
+const toPascalCase = (str: string): string => str.charAt(0).toUpperCase() + str.slice(1);
+const toCamelCase = (str: string): string => str.charAt(0).toLowerCase() + str.slice(1);
+const toKebabCase = (str: string): string => str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
+
+/**
+ * CONFIGURATION : Dictionnaire des templates par ORM.
+ */
+const templates: { PRISMA: ORMTemplate, TYPEORM: ORMTemplate } = {
+    PRISMA: {
+        service: (n) => `
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { ${n.pascal}, Prisma } from '@prisma/client';
+
+@Injectable()
+export class ${n.pascal}Service {
+  constructor(private prisma: PrismaService) {}
+
+  async create(data: Prisma.${n.pascal}CreateInput) {
+    return this.prisma.${n.camel}.create({ data });
+  }
+
+  async findAll() {
+    return this.prisma.${n.camel}.findMany({ where: { deletedAt: null } });
+  }
+
+  async findOne(id: string) {
+    const item = await this.prisma.${n.camel}.findUnique({ where: { ${n.camel}Id: BigInt(id) } });
+    if (!item) throw new NotFoundException(\`ID \${id} non trouvé\`);
+    return item;
+  }
+}`,
+        serviceSpec: (n) => `import { Test } from '@nestjs/testing';\nimport { ${n.pascal}Service } from './${n.kebab}.service';\nimport { PrismaService } from '../prisma/prisma.service';\n\ndescribe('${n.pascal}Service', () => { /* Tests Prisma */ });`,
+        controller: (n) => `
+import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
+import { ${n.pascal}Service } from './${n.kebab}.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+
+@Controller('${n.kebab}s')
+@UseGuards(JwtAuthGuard)
+export class ${n.pascal}Controller {
+  constructor(private readonly service: ${n.pascal}Service) {}
+  @Post() create(@Body() data: any) { return this.service.create(data); }
+  @Get() findAll() { return this.service.findAll(); }
+}`,
+        controllerSpec: (n) => `import { Test } from '@nestjs/testing';\nimport { ${n.pascal}Controller } from './${n.kebab}.controller';\n\ndescribe('${n.pascal}Controller', () => { /* Tests Controller */ });`,
+        module: (n) => `
+import { Module } from '@nestjs/common';
+import { ${n.pascal}Controller } from './${n.kebab}.controller';
+import { ${n.pascal}Service } from './${n.kebab}.service';
+
+@Module({
+  controllers: [${n.pascal}Controller],
+  providers: [${n.pascal}Service],
+  exports: [${n.pascal}Service],
+})
+export class ${n.pascal}Module {}`
+    },
+    TYPEORM: {
+        service: (n) => `
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { ${n.pascal}Entity } from './entities/${n.kebab}.entity';
+
+@Injectable()
+export class ${n.pascal}Service {
+  constructor(
+    @InjectRepository(${n.pascal}Entity)
+    private readonly repository: Repository<${n.pascal}Entity>
+  ) {}
+
+  async findAll() { return this.repository.find(); }
+}`,
+        serviceSpec: (n) => `import { Test } from '@nestjs/testing';\nimport { ${n.pascal}Service } from './${n.kebab}.service';\n\ndescribe('${n.pascal}Service (TypeORM)', () => { /* Tests TypeORM */ });`,
+        controller: (n) => `import { Controller } from '@nestjs/common';\n@Controller('${n.kebab}s')\nexport class ${n.pascal}Controller {}`,
+        controllerSpec: (n) => `// Spec TypeORM`,
+        module: (n) => `
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { ${n.pascal}Entity } from './entities/${n.kebab}.entity';
+import { ${n.pascal}Service } from './${n.kebab}.service';
+
+@Module({
+  imports: [TypeOrmModule.forFeature([${n.pascal}Entity])],
+  providers: [${n.pascal}Service],
+})
+export class ${n.pascal}Module {}`
+    }
+};
+
+/**
+ * AUTO-IMPORT : Mise à jour du app.module.ts
+ */
+async function updateAppModule(n: ModuleNames) {
+    const appModulePath = path.join(process.cwd(), 'apps/api/src/app.module.ts');
+    if (!(await fs.pathExists(appModulePath))) return;
+
+    let content = await fs.readFile(appModulePath, 'utf-8');
+    const importLine = `import { ${n.pascal}Module } from './${n.kebab}/${n.kebab}.module';\n`;
+    
+    if (!content.includes(importLine)) content = importLine + content;
+
+    const importsRegex = /(imports\s*:\s*\[)([\s\S]*?)(\])/;
+    if (importsRegex.test(content)) {
+        content = content.replace(importsRegex, (match, opening, list, closing) => {
+            if (list.includes(`${n.pascal}Module`)) return match;
+            const hasComma = list.trim().endsWith(',') || list.trim() === "";
+            return `${opening}${list}${hasComma ? "" : ","}\n    ${n.pascal}Module,${closing}`;
+        });
+    }
+    await fs.writeFile(appModulePath, content);
+    console.log(pc.magenta(`✅ [Auto-Import] ${n.pascal}Module ajouté.`));
+}
+
+/**
+ * MAIN : Génération du module
+ */
 async function generateNestTddModule() {
     const args = process.argv.slice(2);
     const rawName = args[0];
 
     if (!rawName) {
-        console.log(pc.red("❌ Erreur: Tu dois fournir un nom de module (ex: Media)"));
+        console.log(pc.red("❌ Erreur: Nom de module manquant."));
         process.exit(1);
     }
 
-    const name = {
+    // Détection de l'ORM via le flag --typeorm
+    const ormChoice: 'PRISMA' | 'TYPEORM' = args.includes('--typeorm') ? 'TYPEORM' : 'PRISMA';
+
+    const name: ModuleNames = {
         pascal: toPascalCase(rawName),
         camel: toCamelCase(rawName),
         kebab: toKebabCase(rawName)
     };
 
-    // Chemin cible (à adapter selon ton projet pro)
     const targetDir = path.join(process.cwd(), 'apps/api/src', name.kebab);
 
     if (await fs.pathExists(targetDir)) {
-        console.log(pc.yellow(`⚠️ Le dossier ${name.kebab} existe déjà. Annulation pour protéger ton code.`));
+        console.log(pc.yellow(`⚠️ Le dossier ${name.kebab} existe déjà.`));
         process.exit(1);
     }
 
     await fs.ensureDir(targetDir);
 
-    // --- TEMPLATES ---
+    // Sélection du template choisi
+    const selectedTemplate = templates[ormChoice];
 
-    const serviceContent = `import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { ${name.pascal}, Prisma } from '@prisma/client';
-
-@Injectable()
-export class ${name.pascal}Service {
-  constructor(private prisma: PrismaService) {}
-
-  async create(data: Prisma.${name.pascal}CreateInput) {
-    return this.prisma.${name.camel}.create({ data });
-  }
-
-  async findAll() {
-    return this.prisma.${name.camel}.findMany({ where: { deletedAt: null } });
-  }
-
-  async findOne(id: string) {
-    const item = await this.prisma.${name.camel}.findUnique({ where: { ${name.camel}Id: BigInt(id) } });
-    if (!item) throw new NotFoundException(\`${name.pascal} non trouvé\`);
-    return item;
-  }
-}`;
-
-    const serviceSpecContent = `import { Test, TestingModule } from '@nestjs/testing';
-import { ${name.pascal}Service } from './${name.kebab}.service';
-import { PrismaService } from '../prisma/prisma.service';
-
-describe('${name.pascal}Service', () => {
-  let service: ${name.pascal}Service;
-  
-  const mockPrisma = {
-    ${name.camel}: { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn() }
-  };
-
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        ${name.pascal}Service,
-        { provide: PrismaService, useValue: mockPrisma }
-      ],
-    }).compile();
-    service = module.get<${name.pascal}Service>(${name.pascal}Service);
-  });
-
-  it('should be defined', () => {
-    expect(service).toBeDefined();
-  });
-});`;
-
-    const controllerContent = `import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
-import { ${name.pascal}Service } from './${name.kebab}.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-
-@Controller('${name.kebab}s')
-@UseGuards(JwtAuthGuard)
-export class ${name.pascal}Controller {
-  constructor(private readonly ${name.camel}Service: ${name.pascal}Service) {}
-
-  @Post()
-  create(@Body() data: any) {
-    return this.${name.camel}Service.create(data);
-  }
-
-  @Get()
-  findAll() {
-    return this.${name.camel}Service.findAll();
-  }
-}`;
-
-    const moduleContent = `import { Module } from '@nestjs/common';
-import { ${name.pascal}Controller } from './${name.kebab}.controller';
-import { ${name.pascal}Service } from './${name.kebab}.service';
-
-@Module({
-  controllers: [${name.pascal}Controller],
-  providers: [${name.pascal}Service],
-  exports: [${name.pascal}Service],
-})
-export class ${name.pascal}Module {}`;
-
-    // --- CRÉATION DES FICHIERS ---
     const files = [
-        { filename: `${name.kebab}.service.ts`, content: serviceContent },
-        { filename: `${name.kebab}.service.spec.ts`, content: serviceSpecContent },
-        { filename: `${name.kebab}.controller.ts`, content: controllerContent },
-        { filename: `${name.kebab}.module.ts`, content: moduleContent },
+        { filename: `${name.kebab}.service.ts`, content: selectedTemplate.service(name) },
+        { filename: `${name.kebab}.service.spec.ts`, content: selectedTemplate.serviceSpec(name) },
+        { filename: `${name.kebab}.controller.ts`, content: selectedTemplate.controller(name) },
+        { filename: `${name.kebab}.controller.spec.ts`, content: selectedTemplate.controllerSpec(name) },
+        { filename: `${name.kebab}.module.ts`, content: selectedTemplate.module(name) },
     ];
 
     for (const file of files) {
         await fs.writeFile(path.join(targetDir, file.filename), file.content.trim());
-        console.log(pc.green(`✓ [Généré] ${file.filename}`));
+        console.log(pc.green(`✓ [Généré avec ${ormChoice}] ${file.filename}`));
     }
 
-    console.log(pc.cyan(`\n🚀 Module ${name.pascal} prêt pour le TDD !`));
+    await updateAppModule(name);
+    console.log(pc.cyan(`\n🚀 Module ${name.pascal} créé avec succès.`));
 }
 
 generateNestTddModule().catch(console.error);

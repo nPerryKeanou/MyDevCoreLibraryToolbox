@@ -1,0 +1,59 @@
+{
+  "compilerOptions": {
+    /* --- Options de Base --- */
+    
+    // Définit la version de JavaScript produite (ESNext = la plus récente).
+    "target": "ESNext", 
+    
+    // Définit le système de modules pour le code généré. "CommonJS" est le standard pour Node.js.
+    "module": "CommonJS", 
+    
+    // Indique les bibliothèques de types intégrées à utiliser (ici, tout ce qui est moderne).
+    "lib": ["ESNext"], 
+    
+    // Autorise TypeScript à compiler aussi des fichiers .js si tu en ajoutes.
+    "allowJs": true, 
+    
+    // Le dossier où ira le code compilé (prêt pour la production).
+    "outDir": "./dist", 
+    
+    // Le dossier racine où se trouve ton code source.
+    "rootDir": "./", 
+    
+    // Permet d'utiliser des chemins relatifs plus simples pour tes imports.
+    "baseUrl": "./", 
+
+    /* --- Rigueur et Qualité (Strictness) --- */
+    
+    // Active toutes les vérifications de type strictes (le mode "sécurité maximale").
+    "strict": true, 
+    
+    // Interdit de laisser une variable sans type (le type 'any' devient interdit par défaut).
+    "noImplicitAny": true, 
+    
+    // Ignore la vérification des types dans tes dossiers 'node_modules' (gain de temps).
+    "skipLibCheck": true, 
+
+    /* --- Compatibilité (Interop Support) --- */
+    
+    // FIX de ton erreur : Permet d'importer des modules "à l'ancienne" avec la syntaxe moderne.
+    "esModuleInterop": true, 
+    
+    // Permet d'importer des fichiers .json directement dans ton code (ex: import data from './config.json').
+    "resolveJsonModule": true, 
+    
+    // Dit à TypeScript d'utiliser la logique de recherche de fichiers de Node.js.
+    "moduleResolution": "node", 
+    
+    // Garantit que l'import respecte la casse (ex: refuse d'importer 'Fichier.ts' si le nom est 'fichier.ts').
+    "forceConsistentCasingInFileNames": true
+  },
+
+  /* --- Organisation des fichiers --- */
+  
+  // Quels dossiers TypeScript doit surveiller et compiler.
+  "include": ["scripts/**/*", "lib/**/*"], 
+  
+  // Quels dossiers TypeScript doit totalement ignorer.
+  "exclude": ["node_modules", "dist"] 
+}
