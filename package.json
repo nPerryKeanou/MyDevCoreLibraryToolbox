@@ -9,7 +9,8 @@
     ],
     "script": {
         "build": "tsc",
-        "generate:nest": "node scripts/nest-module-gen/main.js"
+        "generate:nest": "node scripts/nest-module-gen/main.js",
+        "generate:crud": "ts-node scripts/nest-module-gen.ts"
     },
     "devDependencies": {
         "typeScript": "$5.0.0"
