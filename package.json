@@ -1,18 +1,25 @@
 {
-    "name": "@nPerryKeanou/MyDevCoreLibraryToolBox",
-    "versions": "1.0.0",
-    "description": "My core library and automation tools",
-    "main": "dist/index.js",
-    "types": "dist/index.d.ts",
-    "files": [
-        "dist"
-    ],
-    "script": {
-        "build": "tsc",
-        "generate:nest": "node scripts/nest-module-gen/main.js",
-        "generate:crud": "ts-node scripts/nest-module-gen.ts"
-    },
-    "devDependencies": {
-        "typeScript": "$5.0.0"
-    }
+  "name": "@ton-pseudo/dev-toolbox",
+  "version": "1.0.0",
+  "description": "Ma core library et mes outils d'automatisation",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "generate:nest": "node scripts/nest-module-gen/main.js",
+    "gen:crud": "ts-node scripts/nest-module-gen.ts"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^25.3.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "fs-extra": "^11.3.3",
+    "picocolors": "^1.1.1"
+  }
 }
